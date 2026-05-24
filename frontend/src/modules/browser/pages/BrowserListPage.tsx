@@ -7,6 +7,7 @@ import { BatchToolbar } from '../components/BrowserListWidgets'
 import { BrowserProfilesPanel } from '../components/BrowserProfilesPanel'
 import { EMPTY_FILTERS } from '../components/InstanceFilterBar'
 import type { InstanceFilters } from '../components/InstanceFilterBar'
+import type { SortOrder, SorterResult } from '../../../shared/components/Table'
 import { EventsOn, BrowserOpenURL } from '../../../wailsjs/runtime/runtime'
 import { PROJECT_GITHUB_URL } from '../../../config/links'
 import { resolveActionErrorMessage, resolveActionFeedback } from '../utils/actionErrors'
@@ -47,6 +48,31 @@ const resolveProfileStatus = (running: boolean, debugReady: boolean, starting: b
   return { variant: 'warning' as const, label: '已停止' }
 }
 
+const naturalCompare = (a: string, b: string): number => {
+  const re = /(\d+)|(\D+)/g
+  const partsA = a.match(re) || []
+  const partsB = b.match(re) || []
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    if (i >= partsA.length) return -1
+    if (i >= partsB.length) return 1
+    const pa = partsA[i], pb = partsB[i]
+    const na = Number(pa), nb = Number(pb)
+    if (!isNaN(na) && !isNaN(nb)) {
+      if (na !== nb) return na - nb
+    } else {
+      const cmp = pa.localeCompare(pb, 'zh-CN')
+      if (cmp !== 0) return cmp
+    }
+  }
+  return 0
+}
+
+const getTimeValue = (value?: string) => {
+  if (!value) return 0
+  const timestamp = new Date(value).getTime()
+  return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
 export function BrowserListPage() {
   const [profiles, setProfiles] = useState<BrowserProfile[]>([])
   const [loading, setLoading] = useState(true)
@@ -61,6 +87,10 @@ export function BrowserListPage() {
   // 勾选状态
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchLoading, setBatchLoading] = useState(false)
+  const [sortColumn, setSortColumn] = useState('profileName')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   // 筛选状态（从 localStorage 恢复）
   const [filters, setFilters] = useState<InstanceFilters>(() => {
@@ -341,24 +371,6 @@ export function BrowserListPage() {
   )
 
   const filteredProfiles = useMemo(() => {
-    const naturalCompare = (a: string, b: string): number => {
-      const re = /(\d+)|(\D+)/g
-      const partsA = a.match(re) || []
-      const partsB = b.match(re) || []
-      for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
-        if (i >= partsA.length) return -1
-        if (i >= partsB.length) return 1
-        const pa = partsA[i], pb = partsB[i]
-        const na = Number(pa), nb = Number(pb)
-        if (!isNaN(na) && !isNaN(nb)) {
-          if (na !== nb) return na - nb
-        } else {
-          const cmp = pa.localeCompare(pb, 'zh-CN')
-          if (cmp !== 0) return cmp
-        }
-      }
-      return 0
-    }
     return profiles.filter(p => {
       // 分组筛选
       if (filters.groupId === '__ungrouped__' && p.groupId) return false
@@ -380,8 +392,58 @@ export function BrowserListPage() {
         if (!hit) return false
       }
       return true
-    }).sort((a, b) => naturalCompare(a.profileName, b.profileName))
+    })
   }, [profiles, filters, defaultCore, cores])
+
+  const sortedProfiles = useMemo(() => {
+    const items = [...filteredProfiles]
+    const direction = sortOrder === 'desc' ? -1 : 1
+
+    if (!sortOrder) {
+      return items.sort((a, b) => naturalCompare(a.profileName, b.profileName))
+    }
+
+    return items.sort((a, b) => {
+      let result = 0
+      switch (sortColumn) {
+        case 'profileId':
+          result = naturalCompare(a.profileId || '', b.profileId || '')
+          break
+        case 'createdAt':
+          result = getTimeValue(a.createdAt) - getTimeValue(b.createdAt)
+          break
+        case 'lastStartAt':
+          result = getTimeValue(a.lastStartAt) - getTimeValue(b.lastStartAt)
+          break
+        case 'profileName':
+        default:
+          result = naturalCompare(a.profileName || '', b.profileName || '')
+          break
+      }
+
+      return result * direction
+    })
+  }, [filteredProfiles, sortColumn, sortOrder])
+
+  const totalPages = Math.max(1, Math.ceil(sortedProfiles.length / pageSize))
+
+  useEffect(() => {
+    setCurrentPage(prev => Math.min(Math.max(prev, 1), totalPages))
+  }, [totalPages])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filters, pageSize, sortColumn, sortOrder])
+
+  const pagedProfiles = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return sortedProfiles.slice(start, start + pageSize)
+  }, [sortedProfiles, currentPage, pageSize])
+
+  const handleSortChange = ({ column, order }: SorterResult) => {
+    setSortColumn(column)
+    setSortOrder(order)
+  }
 
   const handleStart = async (profileId: string) => {
     const profile = profiles.find(p => p.profileId === profileId)
@@ -756,9 +818,14 @@ export function BrowserListPage() {
       <BrowserProfilesPanel
         loading={loading}
         viewMode={viewMode}
-        profiles={filteredProfiles}
+        profiles={pagedProfiles}
+        totalCount={filteredProfiles.length}
         proxies={proxies}
         selectedIds={selectedIds}
+        sortColumn={sortColumn}
+        sortOrder={sortOrder}
+        currentPage={currentPage}
+        pageSize={pageSize}
         resolveProfileCore={resolveProfileCore}
         getProfileCoreLabel={getProfileCoreLabel}
         getProfileStatus={getProfileStatus}
@@ -768,6 +835,9 @@ export function BrowserListPage() {
         onToggleSelect={toggleSelect}
         onSelectAll={handleSelectAll}
         onDeselectAll={handleDeselectAll}
+        onSortChange={handleSortChange}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={setPageSize}
         onRefreshProfiles={() => { void loadProfiles() }}
         onStart={(profileId) => { void handleStart(profileId) }}
         onStop={(profileId) => { void handleStop(profileId) }}
