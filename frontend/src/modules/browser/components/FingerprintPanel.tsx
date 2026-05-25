@@ -5,10 +5,12 @@ import {
   type FingerprintConfig,
   FINGERPRINT_PRESETS,
   PRESET_RESOLUTIONS,
+  RANDOM_OPTION_VALUE,
   buildUserAgent,
   defaultOSVersion,
   deserialize,
   getSystemTimezone,
+  randomScreenHardwarePatch,
   randomFingerprintSeed,
   serialize,
 } from '../utils/fingerprintSerializer'
@@ -129,6 +131,7 @@ const TIMEZONE_OPTIONS = [
 ]
 
 const RESOLUTION_OPTIONS = [
+  { value: RANDOM_OPTION_VALUE, label: '随机' },
   ...PRESET_RESOLUTIONS.map(r => ({ value: r, label: r })),
   { value: 'custom', label: '自定义...' },
 ]
@@ -201,6 +204,7 @@ const GEOLOCATION_PERMISSION_OPTIONS = [
 ]
 
 const HARDWARE_CONCURRENCY_OPTIONS = [
+  { value: RANDOM_OPTION_VALUE, label: '随机' },
   { value: '2', label: '2 核' },
   { value: '4', label: '4 核' },
   { value: '6', label: '6 核' },
@@ -211,6 +215,7 @@ const HARDWARE_CONCURRENCY_OPTIONS = [
 ]
 
 const DEVICE_MEMORY_OPTIONS = [
+  { value: RANDOM_OPTION_VALUE, label: '随机' },
   { value: '2', label: '2 GB' },
   { value: '4', label: '4 GB' },
   { value: '8', label: '8 GB' },
@@ -219,6 +224,7 @@ const DEVICE_MEMORY_OPTIONS = [
 ]
 
 const COLOR_DEPTH_OPTIONS = [
+  { value: RANDOM_OPTION_VALUE, label: '随机' },
   { value: '24', label: '24 位（标准）' },
   { value: '30', label: '30 位（HDR）' },
   { value: '32', label: '32 位' },
@@ -234,6 +240,7 @@ const WEBRTC_OPTIONS = [
 ]
 
 const TOUCH_POINTS_OPTIONS = [
+  { value: RANDOM_OPTION_VALUE, label: '随机' },
   { value: '0', label: '0（无触摸）' },
   { value: '1', label: '1 点触摸' },
   { value: '5', label: '5 点触摸' },
@@ -266,6 +273,13 @@ export function FingerprintPanel({ value, onChange }: FingerprintPanelProps) {
     const withUserAgent = { ...next, userAgent: buildUserAgent(next) }
     setConfig(withUserAgent)
     onChange(serialize(withUserAgent))
+  }
+
+  const randomizeScreenHardware = (patch: Partial<FingerprintConfig> = {}) => {
+    update({
+      ...randomScreenHardwarePatch(),
+      ...patch,
+    })
   }
 
   const handlePresetChange = (presetId: string) => {
@@ -418,7 +432,13 @@ export function FingerprintPanel({ value, onChange }: FingerprintPanelProps) {
           <FormItem label="分辨率">
             <Select
               value={config.resolution ?? '1920,1080'}
-              onChange={e => update({ resolution: e.target.value || '1920,1080', customResolution: undefined })}
+              onChange={e => {
+                if (e.target.value === RANDOM_OPTION_VALUE) {
+                  randomizeScreenHardware()
+                } else {
+                  update({ resolution: e.target.value || '1920,1080', customResolution: undefined })
+                }
+              }}
               options={RESOLUTION_OPTIONS}
             />
           </FormItem>
@@ -428,16 +448,56 @@ export function FingerprintPanel({ value, onChange }: FingerprintPanelProps) {
             </FormItem>
           )}
           <FormItem label="色深">
-            <Select value={config.colorDepth ?? '24'} onChange={e => update({ colorDepth: e.target.value || '24' })} options={COLOR_DEPTH_OPTIONS} />
+            <Select
+              value={config.colorDepth ?? '24'}
+              onChange={e => {
+                if (e.target.value === RANDOM_OPTION_VALUE) {
+                  randomizeScreenHardware()
+                } else {
+                  update({ colorDepth: e.target.value || '24' })
+                }
+              }}
+              options={COLOR_DEPTH_OPTIONS}
+            />
           </FormItem>
           <FormItem label="CPU 核心数">
-            <Select value={config.hardwareConcurrency ?? '8'} onChange={e => update({ hardwareConcurrency: e.target.value || '8' })} options={HARDWARE_CONCURRENCY_OPTIONS} />
+            <Select
+              value={config.hardwareConcurrency ?? '8'}
+              onChange={e => {
+                if (e.target.value === RANDOM_OPTION_VALUE) {
+                  randomizeScreenHardware()
+                } else {
+                  update({ hardwareConcurrency: e.target.value || '8' })
+                }
+              }}
+              options={HARDWARE_CONCURRENCY_OPTIONS}
+            />
           </FormItem>
           <FormItem label="设备内存">
-            <Select value={config.deviceMemory ?? '8'} onChange={e => update({ deviceMemory: e.target.value || '8' })} options={DEVICE_MEMORY_OPTIONS} />
+            <Select
+              value={config.deviceMemory ?? '8'}
+              onChange={e => {
+                if (e.target.value === RANDOM_OPTION_VALUE) {
+                  randomizeScreenHardware()
+                } else {
+                  update({ deviceMemory: e.target.value || '8' })
+                }
+              }}
+              options={DEVICE_MEMORY_OPTIONS}
+            />
           </FormItem>
           <FormItem label="触摸点数">
-            <Select value={config.touchPoints ?? '0'} onChange={e => update({ touchPoints: e.target.value || '0' })} options={TOUCH_POINTS_OPTIONS} />
+            <Select
+              value={config.touchPoints ?? '0'}
+              onChange={e => {
+                if (e.target.value === RANDOM_OPTION_VALUE) {
+                  randomizeScreenHardware()
+                } else {
+                  update({ touchPoints: e.target.value || '0' })
+                }
+              }}
+              options={TOUCH_POINTS_OPTIONS}
+            />
           </FormItem>
         </div>
       </div>

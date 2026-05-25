@@ -338,7 +338,6 @@ export function BrowserListPage() {
     }
   }, [])
 
-  const runningCount = useMemo(() => profiles.filter(p => p.running).length, [profiles])
   const allTags = useMemo(() => {
     const set = new Set<string>()
     profiles.forEach(p => p.tags?.forEach(t => set.add(t)))
@@ -802,7 +801,6 @@ export function BrowserListPage() {
       <BrowserListHeader
         profileCount={profiles.length}
         filteredProfileCount={filteredProfiles.length}
-        runningCount={runningCount}
         headerCollapsed={headerCollapsed}
         viewMode={viewMode}
         proxies={proxies}

@@ -127,7 +127,8 @@ func (a *App) prepareBrowserStartPlan(input browserStartInput, profile *BrowserP
 	maxStartAttempts := browserStartAttemptCount()
 	totalReadyTimeout := time.Duration(maxStartAttempts) * startReadyTimeout
 	restoreLastSession := browserRestoreLastSession(a.config)
-	defaultStartURLs, startPageErr := a.browserDefaultLaunchTargets(input, profile, restoreLastSession, time.Now())
+	launchedAt := time.Now()
+	defaultStartURLs, startPageErr := a.browserDefaultLaunchTargets(input, profile, restoreLastSession, launchedAt)
 	if startPageErr != nil {
 		logger.New("Browser").Warn("默认实例启动页生成失败，回退空白页",
 			logger.F("profile_id", input.ProfileID),
@@ -210,6 +211,8 @@ func (a *App) prepareBrowserLaunchContext(input browserStartInput, profile *Brow
 			log.Error("浏览器语言偏好写入失败", logger.F("profile_id", input.ProfileID), logger.F("locale", locale), logger.F("error", err.Error()))
 		}
 	}
+
+	a.seedPlatformPasswordStore(profile, userDataDir)
 
 	if !browserRestoreLastSession(a.config) {
 		if err := browser.ClearSessionRestoreData(userDataDir); err != nil {

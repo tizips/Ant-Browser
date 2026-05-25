@@ -101,6 +101,11 @@ func (a *App) migrateToSQLite() {
 				p := &browser.Profile{
 					ProfileId:          pc.ProfileId,
 					ProfileName:        pc.ProfileName,
+					Username:           browser.ResolveProfileUsername(pc.Username, pc.ProfileName),
+					Password:           strings.TrimSpace(pc.Password),
+					Platform:           strings.TrimSpace(pc.Platform),
+					PlatformName:       strings.TrimSpace(pc.PlatformName),
+					PlatformURL:        strings.TrimSpace(pc.PlatformURL),
 					UserDataDir:        pc.UserDataDir,
 					CoreId:             coreId,
 					FingerprintArgs:    pc.FingerprintArgs,
@@ -113,6 +118,8 @@ func (a *App) migrateToSQLite() {
 					LaunchArgs:         pc.LaunchArgs,
 					Tags:               pc.Tags,
 					Keywords:           pc.Keywords,
+					TwoFASecret:        strings.TrimSpace(pc.TwoFASecret),
+					IconColor:          browser.ResolveProfileIconColor(pc.IconColor, pc.ProfileId),
 					CreatedAt:          pc.CreatedAt,
 					UpdatedAt:          pc.UpdatedAt,
 				}
@@ -126,6 +133,7 @@ func (a *App) migrateToSQLite() {
 			defaultProfile := &browser.Profile{
 				ProfileId:       generateUUID(),
 				ProfileName:     "默认实例",
+				Username:        "默认实例",
 				UserDataDir:     "default",
 				CoreId:          "",
 				FingerprintArgs: a.config.Browser.DefaultFingerprintArgs,

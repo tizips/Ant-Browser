@@ -12,6 +12,11 @@ type Profile struct {
 	ID                 int64    `json:"id"`
 	ProfileId          string   `json:"profileId"`
 	ProfileName        string   `json:"profileName"`
+	Username           string   `json:"username,omitempty"`
+	Password           string   `json:"password,omitempty"`
+	Platform           string   `json:"platform,omitempty"`
+	PlatformName       string   `json:"platformName,omitempty"`
+	PlatformURL        string   `json:"platformUrl,omitempty"`
 	UserDataDir        string   `json:"userDataDir"`
 	CoreId             string   `json:"coreId"`
 	FingerprintArgs    []string `json:"fingerprintArgs"`
@@ -24,6 +29,8 @@ type Profile struct {
 	LaunchArgs         []string `json:"launchArgs"`
 	Tags               []string `json:"tags"`
 	Keywords           []string `json:"keywords"`
+	TwoFASecret        string   `json:"twoFaSecret,omitempty"`
+	IconColor          string   `json:"iconColor,omitempty"`
 	GroupId            string   `json:"groupId"` // 所属分组ID
 	LaunchCode         string   `json:"launchCode"`
 	Running            bool     `json:"running"`
@@ -41,6 +48,11 @@ type Profile struct {
 // ProfileInput 创建/更新配置文件的输入
 type ProfileInput struct {
 	ProfileName     string   `json:"profileName"`
+	Username        string   `json:"username,omitempty"`
+	Password        string   `json:"password,omitempty"`
+	Platform        string   `json:"platform,omitempty"`
+	PlatformName    string   `json:"platformName,omitempty"`
+	PlatformURL     string   `json:"platformUrl,omitempty"`
 	UserDataDir     string   `json:"userDataDir"`
 	CoreId          string   `json:"coreId"`
 	FingerprintArgs []string `json:"fingerprintArgs"`
@@ -49,6 +61,8 @@ type ProfileInput struct {
 	LaunchArgs      []string `json:"launchArgs"`
 	Tags            []string `json:"tags"`
 	Keywords        []string `json:"keywords"`
+	TwoFASecret     string   `json:"twoFaSecret,omitempty"`
+	IconColor       string   `json:"iconColor,omitempty"`
 	GroupId         string   `json:"groupId"` // 所属分组ID
 }
 

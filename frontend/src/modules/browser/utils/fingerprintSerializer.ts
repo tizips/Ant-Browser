@@ -68,6 +68,12 @@ export interface FingerprintConfig {
 }
 
 export const PRESET_RESOLUTIONS = ['1920,1080', '1440,900', '1366,768', '2560,1440', '1280,800', '1600,900']
+export const RANDOM_OPTION_VALUE = '__random__'
+
+export const RANDOM_COLOR_DEPTHS = ['24', '24', '24', '30', '32']
+export const RANDOM_HARDWARE_CONCURRENCY = ['4', '6', '8', '8', '10', '12', '16']
+export const RANDOM_DEVICE_MEMORY = ['4', '8', '8', '16', '16', '32']
+export const RANDOM_TOUCH_POINTS = ['0', '0', '0', '1', '5']
 
 export const DEFAULT_FINGERPRINT_CONFIG: Partial<FingerprintConfig> = {
   brand: 'Chrome',
@@ -319,6 +325,31 @@ function normalizePlatformValue(platform?: string): string {
 // 生成随机指纹种子（32位正整数）
 export function randomFingerprintSeed(): string {
   return String(Math.floor(Math.random() * 2147483647) + 1)
+}
+
+function randomChoice<T>(items: T[]): T {
+  return items[Math.floor(Math.random() * items.length)]
+}
+
+export function randomScreenHardwarePatch(): Pick<FingerprintConfig, 'resolution' | 'customResolution' | 'colorDepth' | 'hardwareConcurrency' | 'deviceMemory' | 'touchPoints'> {
+  return {
+    resolution: randomChoice(PRESET_RESOLUTIONS),
+    customResolution: undefined,
+    colorDepth: randomChoice(RANDOM_COLOR_DEPTHS),
+    hardwareConcurrency: randomChoice(RANDOM_HARDWARE_CONCURRENCY),
+    deviceMemory: randomChoice(RANDOM_DEVICE_MEMORY),
+    touchPoints: randomChoice(RANDOM_TOUCH_POINTS),
+  }
+}
+
+export function createRandomizedFingerprintConfig(base: FingerprintConfig | Partial<FingerprintConfig> = {}): FingerprintConfig {
+  const next = withFingerprintDefaults({
+    ...base,
+    ...randomScreenHardwarePatch(),
+    seed: base.seed || randomFingerprintSeed(),
+  })
+  next.userAgent = base.userAgent || buildUserAgent(next)
+  return next
 }
 
 // ─── 预设指纹配置 ────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 ﻿import { Link } from 'react-router-dom'
-import { Activity, CheckCircle, ChevronRight, ChevronUp, Edit2, FileText, Gift, LayoutGrid, List, Play, Plus, RefreshCw, Sliders, Square, Star, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle, ChevronRight, ChevronUp, Edit2, Gift, LayoutGrid, List, Play, Plus, RefreshCw, Sliders, Star, Trash2, XCircle } from 'lucide-react'
 
-import { Button, Card, FormItem, Input, Modal, StatCard, Switch, Table, Textarea } from '../../../shared/components'
+import { Button, Card, FormItem, Input, Modal, Switch, Table, Textarea } from '../../../shared/components'
 import type { TableColumn } from '../../../shared/components/Table'
 
 import type { BrowserCore, BrowserCoreInput, BrowserGroupWithCount, BrowserProxy, BrowserSettings } from '../types'
@@ -13,7 +13,6 @@ export type BrowserViewMode = 'card' | 'table'
 interface BrowserListHeaderProps {
   profileCount: number
   filteredProfileCount: number
-  runningCount: number
   headerCollapsed: boolean
   viewMode: BrowserViewMode
   proxies: BrowserProxy[]
@@ -32,7 +31,6 @@ interface BrowserListHeaderProps {
 export function BrowserListHeader({
   profileCount,
   filteredProfileCount,
-  runningCount,
   headerCollapsed,
   viewMode,
   proxies,
@@ -104,22 +102,14 @@ export function BrowserListHeader({
       </div>
 
       {!headerCollapsed && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatCard title="配置总数" value={`${profileCount}`} icon={<FileText className="w-5 h-5" />} />
-            <StatCard title="运行中实例" value={`${runningCount}`} icon={<Activity className="w-5 h-5" />} />
-            <StatCard title="停止实例" value={`${profileCount - runningCount}`} icon={<Square className="w-5 h-5 text-gray-400" />} />
-          </div>
-
-          <InstanceFilterBar
-            filters={filters}
-            onChange={onFiltersChange}
-            proxies={proxies}
-            cores={cores}
-            allTags={allTags}
-            groups={groups}
-          />
-        </>
+        <InstanceFilterBar
+          filters={filters}
+          onChange={onFiltersChange}
+          proxies={proxies}
+          cores={cores}
+          allTags={allTags}
+          groups={groups}
+        />
       )}
     </>
   )

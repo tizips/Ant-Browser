@@ -18,6 +18,7 @@ func (s *LaunchServer) buildMux() *http.ServeMux {
 	mux.HandleFunc("/api/launch", s.handleLaunchWithBody)
 	mux.HandleFunc("/api/launch/logs", s.handleLaunchLogs)
 	mux.HandleFunc("/api/launch/", s.handleLaunch)
+	mux.HandleFunc("/start-pages/", s.handleStartPageFile)
 	mux.HandleFunc("/", s.handleCDPProxy)
 	return mux
 }

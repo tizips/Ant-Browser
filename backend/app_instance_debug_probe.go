@@ -50,6 +50,29 @@ func probeBrowserJSONList(client *http.Client, debugPort int) error {
 	return fetchBrowserDebugJSON(client, debugPort, "/json/list", &payload)
 }
 
+func browserDebugPageTargetCount(debugPort int, requestTimeout time.Duration) (int, error) {
+	if debugPort <= 0 {
+		return 0, fmt.Errorf("invalid debug port %d", debugPort)
+	}
+
+	var payload []struct {
+		Type string `json:"type"`
+		URL  string `json:"url"`
+	}
+	client := &http.Client{Timeout: requestTimeout}
+	if err := fetchBrowserDebugJSON(client, debugPort, "/json/list", &payload); err != nil {
+		return 0, err
+	}
+
+	count := 0
+	for _, item := range payload {
+		if strings.EqualFold(strings.TrimSpace(item.Type), "page") {
+			count++
+		}
+	}
+	return count, nil
+}
+
 func fetchBrowserDebugJSON(client *http.Client, debugPort int, path string, dest interface{}) error {
 	url := fmt.Sprintf("http://127.0.0.1:%d%s", debugPort, path)
 	resp, err := client.Get(url)

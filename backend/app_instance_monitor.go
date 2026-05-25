@@ -3,9 +3,17 @@ package backend
 import (
 	"ant-chrome/backend/internal/logger"
 	"fmt"
+	"os/exec"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+)
+
+var (
+	browserTabMonitorInitialGrace = 2 * time.Second
+	browserTabMonitorPollInterval = 500 * time.Millisecond
+	browserTabMonitorEmptySamples = 3
+	browserTabMonitorCloseTimeout = 2 * time.Second
 )
 
 func (a *App) waitBrowserProcess(profileId string, monitor *browserProcessMonitor) {
@@ -80,6 +88,85 @@ func (a *App) waitBrowserProcess(profileId string, monitor *browserProcessMonito
 	} else {
 		runtime.EventsEmit(a.ctx, "browser:instance:stopped", profileId)
 	}
+}
+
+func (a *App) watchBrowserTabs(profileId string, debugPort int) {
+	if a == nil || a.browserMgr == nil || debugPort <= 0 {
+		return
+	}
+	if browserTabMonitorInitialGrace > 0 {
+		time.Sleep(browserTabMonitorInitialGrace)
+	}
+
+	log := logger.New("Browser")
+	emptySamples := 0
+	for {
+		if !a.isProfileRunningOnDebugPort(profileId, debugPort) {
+			return
+		}
+
+		count, err := browserDebugPageTargetCount(debugPort, browserDebugProbeTimeout)
+		if err != nil {
+			emptySamples = 0
+			time.Sleep(browserTabMonitorPollInterval)
+			continue
+		}
+		if count > 0 {
+			emptySamples = 0
+			time.Sleep(browserTabMonitorPollInterval)
+			continue
+		}
+
+		emptySamples++
+		if emptySamples < browserTabMonitorEmptySamples {
+			time.Sleep(browserTabMonitorPollInterval)
+			continue
+		}
+
+		cmd, profileName, ok := a.browserProcessForAutoClose(profileId, debugPort)
+		if !ok {
+			return
+		}
+		if !tryCloseBrowserViaCDP(debugPort, browserTabMonitorCloseTimeout) && cmd != nil && cmd.Process != nil {
+			_ = a.stopBrowserProcess(cmd)
+		}
+
+		a.browserMgr.Mutex.Lock()
+		profile, exists := a.browserMgr.Profiles[profileId]
+		if !exists || profile == nil || !profile.Running || profile.DebugPort != debugPort {
+			a.browserMgr.Mutex.Unlock()
+			return
+		}
+		a.markProfileStoppedLocked(profileId, profile)
+		a.browserMgr.Mutex.Unlock()
+
+		log.Info("检测到所有标签页已关闭，实例已停止",
+			logger.F("profile_id", profileId),
+			logger.F("profile_name", profileName),
+			logger.F("debug_port", debugPort),
+		)
+		if a.ctx != nil {
+			runtime.EventsEmit(a.ctx, "browser:instance:stopped", profileId)
+		}
+		return
+	}
+}
+
+func (a *App) isProfileRunningOnDebugPort(profileId string, debugPort int) bool {
+	a.browserMgr.Mutex.Lock()
+	defer a.browserMgr.Mutex.Unlock()
+	profile, exists := a.browserMgr.Profiles[profileId]
+	return exists && profile != nil && profile.Running && profile.DebugPort == debugPort
+}
+
+func (a *App) browserProcessForAutoClose(profileId string, debugPort int) (*exec.Cmd, string, bool) {
+	a.browserMgr.Mutex.Lock()
+	defer a.browserMgr.Mutex.Unlock()
+	profile, exists := a.browserMgr.Profiles[profileId]
+	if !exists || profile == nil || !profile.Running || profile.DebugPort != debugPort {
+		return nil, "", false
+	}
+	return a.browserMgr.BrowserProcesses[profileId], profile.ProfileName, true
 }
 
 func (a *App) waitDetachedBrowser(profileId string, debugPort int) {

@@ -74,13 +74,21 @@ func TestBrowserStartPageURLWritesProfileInfoPage(t *testing.T) {
 	}
 
 	profile := &BrowserProfile{
-		ProfileId:   "408",
-		ProfileName: "tanikajoe90@gmail.com",
-		GroupId:     "group-gmail",
-		Tags:        []string{"Gmail", "替补"},
-		ProxyConfig: "http://127.0.0.1:2260",
-		LaunchCode:  "CODE408",
-		LastStartAt: "2026-05-24T16:55:57+08:00",
+		ID:           408,
+		ProfileId:    "408",
+		ProfileName:  "tanikajoe90@gmail.com",
+		Username:     "tanikajoe90",
+		Password:     "pass-408",
+		Platform:     "google",
+		PlatformName: "Google",
+		PlatformURL:  "https://accounts.google.com/",
+		GroupId:      "group-gmail",
+		Tags:         []string{"Gmail", "替补"},
+		Keywords:     []string{"buyer-408", "gmail"},
+		TwoFASecret:  "JBSWY3DPEHPK3PXP",
+		ProxyConfig:  "http://127.0.0.1:2260",
+		LaunchCode:   "CODE408",
+		LastStartAt:  "2026-05-24T16:55:57+08:00",
 		FingerprintArgs: []string{
 			"--lang=en,en-US;q=0.9",
 			"--timezone=Asia/Tokyo",
@@ -97,11 +105,11 @@ func TestBrowserStartPageURLWritesProfileInfoPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("invalid start page URL %q: %v", pageURL, err)
 	}
-	if parsed.Scheme != "file" {
-		t.Fatalf("start page URL scheme = %q, want file", parsed.Scheme)
+	if parsed.Scheme != "http" || parsed.Host != "127.0.0.1:19876" || parsed.Path != "/start-pages/408.html" {
+		t.Fatalf("start page URL = %q, want launch server URL", pageURL)
 	}
 
-	content, err := os.ReadFile(parsed.Path)
+	content, err := os.ReadFile(app.resolveAppPath("data/runtime/start-pages/408.html"))
 	if err != nil {
 		t.Fatalf("expected start page file to be readable: %v", err)
 	}
@@ -110,21 +118,111 @@ func TestBrowserStartPageURLWritesProfileInfoPage(t *testing.T) {
 		"<title>408 tanikajoe90@gmail.com</title>",
 		"序号:",
 		"408",
-		"窗口名称:",
+		"实例名称:",
 		"tanikajoe90@gmail.com",
 		"用户名:",
-		"未设置2FA密钥",
+		"tanikajoe90",
+		"密码:",
+		"pass-408",
+		"平台:",
+		"Google",
+		"https://accounts.google.com/",
+		"2FA验证码:",
+		"data-secret=\"JBSWY3DPEHPK3PXP\"",
 		"Gmail_替补",
 		"Gmail, 替补",
-		"http://127.0.0.1:2260",
+		"关键词:",
+		"buyer-408, gmail",
+		"UserAgent:",
+		"Mozilla/5.0 Test",
 		"2026-05-24 16:55:57",
 		"en,en-US;q=0.9",
 		"Asia/Tokyo",
-		"Mozilla/5.0 Test",
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("start page HTML missing %q\n%s", want, html)
 		}
+	}
+	for _, notWant := range []string{
+		"快捷打开码:",
+		"代理:",
+		"备注:",
+		"窗口名称:",
+		"http://127.0.0.1:2260",
+		"CODE408",
+		"未设置2FA密钥",
+	} {
+		if strings.Contains(html, notWant) {
+			t.Fatalf("start page HTML should not contain %q\n%s", notWant, html)
+		}
+	}
+}
+
+func TestBrowserStartPageModelDefaultsUsernameToProfileName(t *testing.T) {
+	t.Parallel()
+
+	app := NewApp(t.TempDir())
+	profile := &BrowserProfile{ProfileId: "profile-1", ProfileName: "buyer-001"}
+
+	model := app.browserStartPageModel(profile, time.Now())
+
+	if model.Username != "buyer-001" {
+		t.Fatalf("Username = %q, want profile name fallback", model.Username)
+	}
+}
+
+func TestBrowserStartPageFallsBackToNavigatorUserAgent(t *testing.T) {
+	t.Parallel()
+
+	html, err := renderBrowserStartPageHTML(browserStartPageModel{
+		Title:       "buyer-001",
+		Serial:      "1",
+		ProfileName: "buyer-001",
+		Username:    "buyer-001",
+	})
+	if err != nil {
+		t.Fatalf("renderBrowserStartPageHTML() error = %v", err)
+	}
+
+	for _, want := range []string{
+		`id="user-agent"`,
+		`navigator.userAgent`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("start page HTML missing %q\n%s", want, html)
+		}
+	}
+}
+
+func TestBrowserStartPageTOTPCodeUsesRFCVector(t *testing.T) {
+	t.Parallel()
+
+	code, err := browserStartPageTOTPCode("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", time.Unix(59, 0))
+	if err != nil {
+		t.Fatalf("browserStartPageTOTPCode returned error: %v", err)
+	}
+	if code != "287082" {
+		t.Fatalf("TOTP code = %q, want 287082", code)
+	}
+}
+
+func TestBrowserStartPageTOTPCodeAcceptsGoogleAuthenticatorURI(t *testing.T) {
+	t.Parallel()
+
+	code, err := browserStartPageTOTPCode("otpauth://totp/demo?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Ant", time.Unix(59, 0))
+	if err != nil {
+		t.Fatalf("browserStartPageTOTPCode returned error: %v", err)
+	}
+	if code != "287082" {
+		t.Fatalf("TOTP code = %q, want 287082", code)
+	}
+}
+
+func TestBrowserStartPageTOTPCodeRejectsInvalidSecret(t *testing.T) {
+	t.Parallel()
+
+	if _, err := browserStartPageTOTPCode("not a base32 secret!", time.Unix(59, 0)); err == nil {
+		t.Fatal("browserStartPageTOTPCode should reject invalid base32 secret")
 	}
 }
 
@@ -145,7 +243,7 @@ func TestBrowserDefaultLaunchTargetsInjectsStartPageOnlyForPlainLaunch(t *testin
 	if err != nil {
 		t.Fatalf("browserDefaultLaunchTargets returned error: %v", err)
 	}
-	if len(targets) != 1 || !strings.HasPrefix(targets[0], "file://") {
+	if len(targets) != 1 || !strings.HasPrefix(targets[0], "http://127.0.0.1:19876/start-pages/") {
 		t.Fatalf("plain launch should use generated start page target, got %v", targets)
 	}
 
@@ -163,6 +261,38 @@ func TestBrowserDefaultLaunchTargetsInjectsStartPageOnlyForPlainLaunch(t *testin
 	}
 	if len(restoreTargets) != 0 {
 		t.Fatalf("session restore should not inject default start page, got %v", restoreTargets)
+	}
+}
+
+func TestBrowserDefaultLaunchTargetsUsesProfilePlatformURLForPlainLaunch(t *testing.T) {
+	t.Parallel()
+
+	app := NewApp(t.TempDir())
+	app.config = DefaultConfig()
+	app.browserMgr = &browser.Manager{}
+
+	profile := &BrowserProfile{
+		ProfileId:    "profile-platform",
+		ProfileName:  "platform-launch",
+		Platform:     "google",
+		PlatformName: "Google",
+		PlatformURL:  "accounts.google.com",
+	}
+
+	targets, err := app.browserDefaultLaunchTargets(newBrowserStartInput(profile.ProfileId, nil, nil, false, false, false, "", ""), profile, false, time.Now())
+	if err != nil {
+		t.Fatalf("browserDefaultLaunchTargets returned error: %v", err)
+	}
+	if len(targets) != 2 || !strings.HasPrefix(targets[0], "http://127.0.0.1:19876/start-pages/") || targets[1] != "https://accounts.google.com" {
+		t.Fatalf("plain launch with platform should use generated start page plus platform URL, got %v", targets)
+	}
+
+	explicitTargets, err := app.browserDefaultLaunchTargets(newBrowserStartInput(profile.ProfileId, nil, []string{"https://example.com"}, false, false, false, "", ""), profile, false, time.Now())
+	if err != nil {
+		t.Fatalf("browserDefaultLaunchTargets explicit returned error: %v", err)
+	}
+	if len(explicitTargets) != 0 {
+		t.Fatalf("explicit launch should not inject platform URL, got %v", explicitTargets)
 	}
 }
 

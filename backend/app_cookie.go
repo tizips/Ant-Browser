@@ -29,6 +29,8 @@ type CookieInfo struct {
 
 // cdpTarget 表示 /json 接口返回的调试目标
 type cdpTarget struct {
+	ID                   string `json:"id"`
+	URL                  string `json:"url"`
 	WebSocketDebuggerUrl string `json:"webSocketDebuggerUrl"`
 	Type                 string `json:"type"`
 }
@@ -55,17 +57,9 @@ type cdpResponse struct {
 
 // cdpCall 向指定 debugPort 发送单次 CDP 命令并返回 result 字段
 func cdpCall(debugPort int, method string, params map[string]any) (map[string]any, error) {
-	// 1. 获取 WebSocket 调试地址
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/json", debugPort))
+	targets, err := fetchBrowserDebugTargets(debugPort)
 	if err != nil {
-		return nil, fmt.Errorf("CDP /json 请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-
-	var targets []cdpTarget
-	if err := json.Unmarshal(body, &targets); err != nil || len(targets) == 0 {
-		return nil, fmt.Errorf("CDP targets 解析失败或为空")
+		return nil, err
 	}
 
 	wsURL := ""
@@ -82,21 +76,53 @@ func cdpCall(debugPort int, method string, params map[string]any) (map[string]an
 		return nil, fmt.Errorf("未找到可用的 WebSocket 调试地址")
 	}
 
-	// 2. 建立 WebSocket 连接
+	result, err := cdpCallWebSocketResult(wsURL, method, params, 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func fetchBrowserDebugTargets(debugPort int) ([]cdpTarget, error) {
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/json", debugPort))
+	if err != nil {
+		return nil, fmt.Errorf("CDP /json 请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var targets []cdpTarget
+	if err := json.Unmarshal(body, &targets); err != nil || len(targets) == 0 {
+		return nil, fmt.Errorf("CDP targets 解析失败或为空")
+	}
+	return targets, nil
+}
+
+func cdpCallWebSocket(wsURL string, method string, params map[string]any, timeout time.Duration) error {
+	_, err := cdpCallWebSocketResult(wsURL, method, params, timeout)
+	return err
+}
+
+func cdpCallWebSocketResult(wsURL string, method string, params map[string]any, timeout time.Duration) (map[string]any, error) {
+	wsURL = strings.TrimSpace(wsURL)
+	if wsURL == "" {
+		return nil, fmt.Errorf("未找到可用的 WebSocket 调试地址")
+	}
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("WebSocket 连接失败: %w", err)
 	}
 	defer conn.Close()
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(timeout))
 
-	// 3. 发送 CDP 命令
 	msg := cdpMessage{Id: 1, Method: method, Params: params}
 	if err := conn.WriteJSON(msg); err != nil {
 		return nil, fmt.Errorf("CDP 命令发送失败: %w", err)
 	}
 
-	// 4. 等待响应
 	var cdpResp cdpResponse
 	if err := conn.ReadJSON(&cdpResp); err != nil {
 		return nil, fmt.Errorf("CDP 响应读取失败: %w", err)

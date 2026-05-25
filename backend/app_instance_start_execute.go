@@ -3,8 +3,6 @@ package backend
 import (
 	"ant-chrome/backend/internal/logger"
 	"fmt"
-	"os/exec"
-	"path/filepath"
 	"strings"
 )
 
@@ -12,8 +10,18 @@ func (a *App) startBrowserProfileWithPlan(input browserStartInput, plan *browser
 	log := logger.New("Browser")
 	profile := plan.profile
 
-	cmd := exec.Command(plan.chromeBinaryPath, plan.args...)
-	cmd.Dir = filepath.Dir(plan.chromeBinaryPath)
+	cmd, err := a.newBrowserLaunchCommand(plan)
+	if err != nil {
+		startErr := fmt.Errorf("实例启动失败：无法准备浏览器启动器。可执行文件：%s。原因：%v。", plan.chromeBinaryPath, err)
+		log.Error("浏览器启动器准备失败",
+			logger.F("profile_id", input.ProfileID),
+			logger.F("chrome", plan.chromeBinaryPath),
+			logger.F("error", err.Error()),
+			logger.F("reason", startErr.Error()),
+		)
+		profile.LastError = startErr.Error()
+		return profile, startErr
+	}
 
 	monitor, err := newBrowserProcessMonitor(cmd)
 	if err != nil {
@@ -61,6 +69,9 @@ func (a *App) startBrowserProfileWithPlan(input browserStartInput, plan *browser
 			)
 			a.emitBrowserInstanceStarted(profile, false)
 
+			a.injectPlatformQuickInputAsync(profile, stableDebugPort)
+			go a.watchBrowserNewTabRedirects(copyBrowserProfileSnapshot(profile), stableDebugPort)
+			go a.watchBrowserTabs(input.ProfileID, stableDebugPort)
 			go a.waitBrowserProcess(input.ProfileID, monitor)
 			return profile, nil
 		}

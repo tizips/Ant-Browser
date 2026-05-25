@@ -214,6 +214,63 @@ WHERE NOT EXISTS (
 				}
 			}
 		}
+		if item.name == "browser_profiles" {
+			hasTwoFASecret, err := backupSrcColumnExists(tx, item.name, "two_fa_secret")
+			if err != nil {
+				return err
+			}
+			hasIconColor, err := backupSrcColumnExists(tx, item.name, "icon_color")
+			if err != nil {
+				return err
+			}
+			hasUsername, err := backupSrcColumnExists(tx, item.name, "username")
+			if err != nil {
+				return err
+			}
+			hasPassword, err := backupSrcColumnExists(tx, item.name, "password")
+			if err != nil {
+				return err
+			}
+			hasPlatform, err := backupSrcColumnExists(tx, item.name, "platform")
+			if err != nil {
+				return err
+			}
+			hasPlatformName, err := backupSrcColumnExists(tx, item.name, "platform_name")
+			if err != nil {
+				return err
+			}
+			hasPlatformURL, err := backupSrcColumnExists(tx, item.name, "platform_url")
+			if err != nil {
+				return err
+			}
+			if hasTwoFASecret || hasIconColor || hasUsername || hasPassword || hasPlatform || hasPlatformName || hasPlatformURL {
+				usernameSelect := backupProfileUsernameSelectExpr(hasUsername, "")
+				usernameSelectWithAlias := backupProfileUsernameSelectExpr(hasUsername, "s.")
+				twoFASelect := backupProfileTwoFASecretSelectExpr(hasTwoFASecret, "")
+				twoFASelectWithAlias := backupProfileTwoFASecretSelectExpr(hasTwoFASecret, "s.")
+				passwordSelect := backupProfileTextColumnSelectExpr(hasPassword, "password", "")
+				passwordSelectWithAlias := backupProfileTextColumnSelectExpr(hasPassword, "password", "s.")
+				platformSelect := backupProfileTextColumnSelectExpr(hasPlatform, "platform", "")
+				platformSelectWithAlias := backupProfileTextColumnSelectExpr(hasPlatform, "platform", "s.")
+				platformNameSelect := backupProfileTextColumnSelectExpr(hasPlatformName, "platform_name", "")
+				platformNameSelectWithAlias := backupProfileTextColumnSelectExpr(hasPlatformName, "platform_name", "s.")
+				platformURLSelect := backupProfileTextColumnSelectExpr(hasPlatformURL, "platform_url", "")
+				platformURLSelectWithAlias := backupProfileTextColumnSelectExpr(hasPlatformURL, "platform_url", "s.")
+				if resetFirst {
+					sqlText = `INSERT INTO browser_profiles (profile_id, profile_name, username, password, platform, platform_name, platform_url, user_data_dir, core_id, fingerprint_args, proxy_id, proxy_config, launch_args, tags, keywords, two_fa_secret, icon_color, group_id, created_at, updated_at)
+SELECT profile_id, profile_name, ` + usernameSelect + `, ` + passwordSelect + `, ` + platformSelect + `, ` + platformNameSelect + `, ` + platformURLSelect + `, user_data_dir, core_id, fingerprint_args, proxy_id, proxy_config, launch_args, tags, keywords, ` + twoFASelect + `, ` + backupProfileIconColorSelectExpr(hasIconColor, "") + `, COALESCE(group_id,''), created_at, updated_at
+FROM src.browser_profiles`
+				} else {
+					sqlText = `INSERT INTO browser_profiles (profile_id, profile_name, username, password, platform, platform_name, platform_url, user_data_dir, core_id, fingerprint_args, proxy_id, proxy_config, launch_args, tags, keywords, two_fa_secret, icon_color, group_id, created_at, updated_at)
+SELECT s.profile_id, s.profile_name, ` + usernameSelectWithAlias + `, ` + passwordSelectWithAlias + `, ` + platformSelectWithAlias + `, ` + platformNameSelectWithAlias + `, ` + platformURLSelectWithAlias + `, s.user_data_dir, s.core_id, s.fingerprint_args, s.proxy_id, s.proxy_config, s.launch_args, s.tags, s.keywords, ` + twoFASelectWithAlias + `, ` + backupProfileIconColorSelectExpr(hasIconColor, "s.") + `, COALESCE(s.group_id,''), s.created_at, s.updated_at
+FROM src.browser_profiles s
+WHERE NOT EXISTS (
+  SELECT 1 FROM browser_profiles t
+  WHERE t.profile_id = s.profile_id OR lower(t.user_data_dir) = lower(s.user_data_dir)
+)`
+				}
+			}
+		}
 		res, err := tx.Exec(sqlText)
 		if err != nil {
 			return fmt.Errorf("导入数据表失败(%s): %w", item.name, err)
@@ -230,4 +287,32 @@ WHERE NOT EXISTS (
 	}
 
 	return tx.Commit()
+}
+
+func backupProfileUsernameSelectExpr(hasUsername bool, prefix string) string {
+	if hasUsername {
+		return "COALESCE(NULLIF(" + prefix + "username,'')," + prefix + "profile_name,'')"
+	}
+	return "COALESCE(" + prefix + "profile_name,'')"
+}
+
+func backupProfileTwoFASecretSelectExpr(hasTwoFASecret bool, prefix string) string {
+	if hasTwoFASecret {
+		return "COALESCE(" + prefix + "two_fa_secret,'')"
+	}
+	return "''"
+}
+
+func backupProfileIconColorSelectExpr(hasIconColor bool, prefix string) string {
+	if hasIconColor {
+		return "COALESCE(" + prefix + "icon_color,'')"
+	}
+	return "''"
+}
+
+func backupProfileTextColumnSelectExpr(hasColumn bool, column string, prefix string) string {
+	if hasColumn {
+		return "COALESCE(" + prefix + column + ",'')"
+	}
+	return "''"
 }

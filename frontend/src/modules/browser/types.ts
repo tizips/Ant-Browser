@@ -2,6 +2,11 @@ export interface BrowserProfile {
   id?: number
   profileId: string
   profileName: string
+  username?: string
+  password?: string
+  platform?: string
+  platformName?: string
+  platformUrl?: string
   userDataDir: string
   coreId: string
   fingerprintArgs: string[]
@@ -14,6 +19,8 @@ export interface BrowserProfile {
   launchArgs: string[]
   tags: string[]
   keywords: string[]
+  twoFaSecret?: string
+  iconColor?: string
   groupId?: string
   running: boolean
   debugPort: number
@@ -30,6 +37,11 @@ export interface BrowserProfile {
 
 export interface BrowserProfileInput {
   profileName: string
+  username?: string
+  password?: string
+  platform?: string
+  platformName?: string
+  platformUrl?: string
   userDataDir: string
   coreId: string
   fingerprintArgs: string[]
@@ -38,6 +50,8 @@ export interface BrowserProfileInput {
   launchArgs: string[]
   tags: string[]
   keywords: string[]
+  twoFaSecret?: string
+  iconColor?: string
   groupId?: string
 }
 

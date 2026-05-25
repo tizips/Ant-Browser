@@ -8,9 +8,20 @@ import { FingerprintPanel } from '../components/FingerprintPanel'
 import { TagInput } from '../components/TagInput'
 import { GroupSelector } from '../components/GroupSelector'
 import { ProxyPickerModal } from '../components/ProxyPickerModal'
+import { createRandomizedFingerprintConfig, deserialize, serialize } from '../utils/fingerprintSerializer'
 
 const fallbackLowLaunchArgs = ['--disable-sync', '--no-first-run']
 const directProxyID = '__direct__'
+const defaultIconColor = '#2563EB'
+const platformOptions = [
+  { value: 'none', label: '无平台', name: '', url: '' },
+  { value: 'google', label: 'Google', name: 'Google', url: 'https://accounts.google.com/' },
+  { value: 'facebook', label: 'Facebook', name: 'Facebook', url: 'https://www.facebook.com/' },
+  { value: 'tiktok', label: 'TikTok', name: 'TikTok', url: 'https://www.tiktok.com/login' },
+  { value: 'amazon', label: 'Amazon', name: 'Amazon', url: 'https://www.amazon.com/' },
+  { value: 'paypal', label: 'PayPal', name: 'PayPal', url: 'https://www.paypal.com/signin' },
+  { value: 'custom', label: '自定义平台', name: '自定义平台', url: '' },
+]
 
 function normalizeLaunchArgs(args: string[]): string[] {
   return (args || []).map(item => item.trim()).filter(Boolean)
@@ -54,6 +65,11 @@ export function BrowserEditPage() {
   const isCreate = id === 'new'
   const [formData, setFormData] = useState<BrowserProfileInput>({
     profileName: '',
+    username: '',
+    password: '',
+    platform: 'none',
+    platformName: '',
+    platformUrl: '',
     userDataDir: '',
     coreId: '',
     fingerprintArgs: [],
@@ -62,6 +78,8 @@ export function BrowserEditPage() {
     launchArgs: [],
     tags: [],
     keywords: [],
+    twoFaSecret: '',
+    iconColor: '',
     groupId: '',
   })
   const [cores, setCores] = useState<BrowserCore[]>([])
@@ -92,7 +110,13 @@ export function BrowserEditPage() {
 
       if (isCreate) {
         const resolved = resolvePoolProxySelection('', '', proxyList)
-        setFormData((prev) => ({ ...prev, proxyId: resolved.proxyId || directProxyID, proxyConfig: '' }))
+        const randomizedFingerprintArgs = serialize(createRandomizedFingerprintConfig(deserialize(settings.defaultFingerprintArgs || [])))
+        setFormData((prev) => ({
+          ...prev,
+          proxyId: resolved.proxyId || directProxyID,
+          proxyConfig: '',
+          fingerprintArgs: randomizedFingerprintArgs,
+        }))
         setLaunchArgsText(resolvedDefaultLaunchArgs.join('\n'))
         return
       }
@@ -106,6 +130,11 @@ export function BrowserEditPage() {
       const resolvedProxy = resolvePoolProxySelection(current.proxyId || '', current.proxyConfig || '', proxyList)
       setFormData({
         profileName: current.profileName,
+        username: current.username || current.profileName,
+        password: current.password || '',
+        platform: current.platform || 'none',
+        platformName: current.platformName || '',
+        platformUrl: current.platformUrl || '',
         userDataDir: current.userDataDir,
         coreId: normalizedCoreId,
         fingerprintArgs: current.fingerprintArgs,
@@ -114,6 +143,8 @@ export function BrowserEditPage() {
         launchArgs: currentLaunchArgs,
         tags: current.tags,
         keywords: current.keywords || [],
+        twoFaSecret: current.twoFaSecret || '',
+        iconColor: current.iconColor || '',
         groupId: current.groupId || '',
       })
       setLaunchArgsText(currentLaunchArgs.join('\n'))
@@ -127,8 +158,22 @@ export function BrowserEditPage() {
       if (field === 'proxyId') {
         return { ...prev, proxyId: typeof value === 'string' ? value : '', proxyConfig: '' }
       }
+      if (field === 'profileName' && typeof value === 'string' && !prev.username) {
+        return { ...prev, profileName: value, username: value }
+      }
       return { ...prev, [field]: value }
     })
+  }
+
+  const handlePlatformChange = (platform: string) => {
+    setIsDirty(true)
+    const preset = platformOptions.find(item => item.value === platform) || platformOptions[0]
+    setFormData(prev => ({
+      ...prev,
+      platform,
+      platformName: preset.name,
+      platformUrl: preset.url,
+    }))
   }
 
   const handleSave = async () => {
@@ -137,9 +182,18 @@ export function BrowserEditPage() {
     const resolvedProxyConfig = (formData.proxyConfig || '').trim()
     const payload: BrowserProfileInput = {
       ...formData,
+      username: (formData.username || '').trim(),
+      password: (formData.password || '').trim(),
+      platform: (formData.platform || 'none').trim(),
+      platformName: (formData.platformName || '').trim(),
+      platformUrl: (formData.platformUrl || '').trim(),
       proxyId: resolvedProxyId,
       proxyConfig: '',
       launchArgs: normalizeLaunchArgs(launchArgsText.split('\n')),
+    }
+    if (payload.platform === 'none') {
+      payload.platformName = ''
+      payload.platformUrl = ''
     }
     if (!resolvedProxyId) {
       if (resolvedProxyConfig) {
@@ -220,6 +274,62 @@ export function BrowserEditPage() {
           <FormItem label="配置名称" required>
             <Input value={formData.profileName} onChange={e => handleChange('profileName', e.target.value)} placeholder="请输入配置名称" />
           </FormItem>
+          <FormItem label="分组">
+            <GroupSelector
+              groups={groups}
+              value={formData.groupId || ''}
+              onChange={groupId => handleChange('groupId', groupId)}
+              placeholder="未分组"
+              className="w-full"
+            />
+          </FormItem>
+          <FormItem label="平台">
+            <Select
+              value={formData.platform || 'none'}
+              onChange={e => handlePlatformChange(e.target.value)}
+              options={platformOptions.map(item => ({ value: item.value, label: item.label }))}
+            />
+          </FormItem>
+          {(formData.platform || 'none') !== 'none' && (
+            <>
+              <FormItem label="平台名称">
+                <Input
+                  value={formData.platformName || ''}
+                  onChange={e => handleChange('platformName', e.target.value)}
+                  placeholder="例如 Google"
+                />
+              </FormItem>
+              <FormItem label="平台链接">
+                <Input
+                  value={formData.platformUrl || ''}
+                  onChange={e => handleChange('platformUrl', e.target.value)}
+                  placeholder="https://accounts.google.com/"
+                />
+              </FormItem>
+            </>
+          )}
+          <FormItem label="用户名">
+            <Input
+              value={formData.username || ''}
+              onChange={e => handleChange('username', e.target.value)}
+              placeholder="平台用户名，默认使用配置名称"
+            />
+          </FormItem>
+          <FormItem label="密码">
+            <Input
+              type="password"
+              value={formData.password || ''}
+              onChange={e => handleChange('password', e.target.value)}
+              placeholder="平台密码，平台页可快捷输入"
+            />
+          </FormItem>
+          <FormItem label="2FA 密钥">
+            <Input
+              value={formData.twoFaSecret || ''}
+              onChange={e => handleChange('twoFaSecret', e.target.value)}
+              placeholder="Google Authenticator Base32 密钥或 otpauth:// 链接"
+            />
+          </FormItem>
           <FormItem label="用户数据目录（留空自动生成）">
             <div className="flex gap-2">
               <Input
@@ -255,14 +365,22 @@ export function BrowserEditPage() {
               placeholder="输入标签后按回车，支持从已有标签选择"
             />
           </FormItem>
-          <FormItem label="分组">
-            <GroupSelector
-              groups={groups}
-              value={formData.groupId || ''}
-              onChange={groupId => handleChange('groupId', groupId)}
-              placeholder="未分组"
-              className="w-full"
-            />
+          <FormItem label="实例图标颜色">
+            <div className="flex gap-2">
+              <input
+                type="color"
+                value={formData.iconColor || defaultIconColor}
+                onChange={e => handleChange('iconColor', e.target.value)}
+                className="h-10 w-12 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-1"
+                title="选择实例 Dock 图标纯色"
+              />
+              <Input
+                value={formData.iconColor || ''}
+                onChange={e => handleChange('iconColor', e.target.value)}
+                placeholder="留空新建时随机，例如 #2563EB"
+                className="flex-1"
+              />
+            </div>
           </FormItem>
         </div>
       </Card>

@@ -175,6 +175,9 @@ func (a *App) waitBrowserDebugReadyAsync(profileId string, debugPort int, timeou
 		logger.F("debug_port", debugPort),
 	)
 	a.emitBrowserInstanceUpdated(snapshot)
+	a.injectPlatformQuickInputAsync(snapshot, debugPort)
+	go a.watchBrowserNewTabRedirects(snapshot, debugPort)
+	go a.watchBrowserTabs(profileId, debugPort)
 }
 
 func shouldKeepBrowserRunningPendingDebugReady(debugPort int, monitor *browserProcessMonitor) bool {

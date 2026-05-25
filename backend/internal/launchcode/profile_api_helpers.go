@@ -29,6 +29,11 @@ func decodeProfileWriteRequest(r *http.Request) (ProfileWriteRequest, int, strin
 func normalizeProfileInput(input browser.ProfileInput) browser.ProfileInput {
 	return browser.ProfileInput{
 		ProfileName:     strings.TrimSpace(input.ProfileName),
+		Username:        browser.ResolveProfileUsername(input.Username, input.ProfileName),
+		Password:        strings.TrimSpace(input.Password),
+		Platform:        strings.TrimSpace(input.Platform),
+		PlatformName:    strings.TrimSpace(input.PlatformName),
+		PlatformURL:     strings.TrimSpace(input.PlatformURL),
 		UserDataDir:     strings.TrimSpace(input.UserDataDir),
 		CoreId:          strings.TrimSpace(input.CoreId),
 		FingerprintArgs: normalizeStringSlice(input.FingerprintArgs),
@@ -37,6 +42,8 @@ func normalizeProfileInput(input browser.ProfileInput) browser.ProfileInput {
 		LaunchArgs:      normalizeStringSlice(input.LaunchArgs),
 		Tags:            normalizeStringSlice(input.Tags),
 		Keywords:        normalizeStringSlice(input.Keywords),
+		TwoFASecret:     strings.TrimSpace(input.TwoFASecret),
+		IconColor:       browser.NormalizeProfileIconColor(input.IconColor),
 		GroupId:         strings.TrimSpace(input.GroupId),
 	}
 }
@@ -47,6 +54,11 @@ func profileToInput(profile *browser.Profile) browser.ProfileInput {
 	}
 	return browser.ProfileInput{
 		ProfileName:     strings.TrimSpace(profile.ProfileName),
+		Username:        browser.ResolveProfileUsername(profile.Username, profile.ProfileName),
+		Password:        strings.TrimSpace(profile.Password),
+		Platform:        strings.TrimSpace(profile.Platform),
+		PlatformName:    strings.TrimSpace(profile.PlatformName),
+		PlatformURL:     strings.TrimSpace(profile.PlatformURL),
 		UserDataDir:     strings.TrimSpace(profile.UserDataDir),
 		CoreId:          strings.TrimSpace(profile.CoreId),
 		FingerprintArgs: append([]string{}, profile.FingerprintArgs...),
@@ -55,6 +67,8 @@ func profileToInput(profile *browser.Profile) browser.ProfileInput {
 		LaunchArgs:      append([]string{}, profile.LaunchArgs...),
 		Tags:            append([]string{}, profile.Tags...),
 		Keywords:        append([]string{}, profile.Keywords...),
+		TwoFASecret:     strings.TrimSpace(profile.TwoFASecret),
+		IconColor:       browser.NormalizeProfileIconColor(profile.IconColor),
 		GroupId:         strings.TrimSpace(profile.GroupId),
 	}
 }

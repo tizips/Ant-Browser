@@ -398,6 +398,95 @@ func TestWaitBrowserProcessKeepsRunningWhileDebugPortAlive(t *testing.T) {
 	}
 }
 
+func TestBrowserDebugPageTargetCountCountsOnlyPages(t *testing.T) {
+	t.Parallel()
+
+	server := startDevToolsServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/json/list":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[
+				{"type":"page","url":"https://example.com/"},
+				{"type":"background_page","url":"chrome-extension://abc/background.html"},
+				{"type":"service_worker","url":"chrome-extension://abc/sw.js"}
+			]`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	got, err := browserDebugPageTargetCount(server.port, time.Second)
+	if err != nil {
+		t.Fatalf("browserDebugPageTargetCount() error = %v", err)
+	}
+	if got != 1 {
+		t.Fatalf("browserDebugPageTargetCount() = %d, want 1", got)
+	}
+}
+
+func TestWatchBrowserTabsStopsProfileWhenAllPageTargetsClosed(t *testing.T) {
+	oldGrace := browserTabMonitorInitialGrace
+	oldPoll := browserTabMonitorPollInterval
+	oldSamples := browserTabMonitorEmptySamples
+	oldCloseTimeout := browserTabMonitorCloseTimeout
+	browserTabMonitorInitialGrace = 0
+	browserTabMonitorPollInterval = 10 * time.Millisecond
+	browserTabMonitorEmptySamples = 2
+	browserTabMonitorCloseTimeout = 10 * time.Millisecond
+	t.Cleanup(func() {
+		browserTabMonitorInitialGrace = oldGrace
+		browserTabMonitorPollInterval = oldPoll
+		browserTabMonitorEmptySamples = oldSamples
+		browserTabMonitorCloseTimeout = oldCloseTimeout
+	})
+
+	server := startDevToolsServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/json/list":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+		case "/json/version":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"Browser":"Chrome/139","webSocketDebuggerUrl":"ws://127.0.0.1/devtools/browser/test"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	app := NewApp("")
+	app.browserMgr = browser.NewManager(config.DefaultConfig(), "")
+	app.browserMgr.Profiles = map[string]*BrowserProfile{
+		"profile-tabs": {
+			ProfileId:   "profile-tabs",
+			ProfileName: "Tabs",
+			Running:     true,
+			DebugReady:  true,
+			DebugPort:   server.port,
+			Pid:         12345,
+		},
+	}
+	app.browserMgr.BrowserProcesses = make(map[string]*exec.Cmd)
+
+	done := make(chan struct{})
+	go func() {
+		app.watchBrowserTabs("profile-tabs", server.port)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("watchBrowserTabs 未在所有标签页关闭后结束")
+	}
+
+	app.browserMgr.Mutex.Lock()
+	defer app.browserMgr.Mutex.Unlock()
+	profile := app.browserMgr.Profiles["profile-tabs"]
+	if profile.Running || profile.DebugPort != 0 || profile.Pid != 0 {
+		t.Fatalf("profile should be stopped after all page targets closed: %+v", profile)
+	}
+}
+
 func TestWaitForBrowserDebugReadyMarksProfileReady(t *testing.T) {
 	t.Parallel()
 

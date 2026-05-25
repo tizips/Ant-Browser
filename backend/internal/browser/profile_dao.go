@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -29,12 +30,14 @@ func NewSQLiteProfileDAO(db *sql.DB) *SQLiteProfileDAO {
 // List 查询所有实例配置，按创建时间升序
 func (d *SQLiteProfileDAO) List() ([]*Profile, error) {
 	rows, err := d.db.Query(`
-		SELECT rowid, profile_id, profile_name, user_data_dir, core_id,
+		SELECT rowid, profile_id, profile_name, COALESCE(username, ''),
+		       COALESCE(password, ''), COALESCE(platform, ''), COALESCE(platform_name, ''), COALESCE(platform_url, ''),
+		       user_data_dir, core_id,
 		       fingerprint_args, proxy_id, proxy_config,
 		       COALESCE(proxy_bind_source_id, ''), COALESCE(proxy_bind_source_url, ''),
 		       COALESCE(proxy_bind_name, ''), COALESCE(proxy_bind_updated_at, ''),
 		       launch_args,
-		       tags, keywords, group_id, created_at, updated_at,
+		       tags, keywords, COALESCE(two_fa_secret, ''), COALESCE(icon_color, ''), group_id, created_at, updated_at,
 		       COALESCE(last_start_at, ''), COALESCE(last_stop_at, '')
 		FROM browser_profiles ORDER BY rowid ASC`)
 	if err != nil {
@@ -56,12 +59,14 @@ func (d *SQLiteProfileDAO) List() ([]*Profile, error) {
 // GetById 根据 profileId 查询单个实例
 func (d *SQLiteProfileDAO) GetById(profileId string) (*Profile, error) {
 	row := d.db.QueryRow(`
-		SELECT rowid, profile_id, profile_name, user_data_dir, core_id,
+		SELECT rowid, profile_id, profile_name, COALESCE(username, ''),
+		       COALESCE(password, ''), COALESCE(platform, ''), COALESCE(platform_name, ''), COALESCE(platform_url, ''),
+		       user_data_dir, core_id,
 		       fingerprint_args, proxy_id, proxy_config,
 		       COALESCE(proxy_bind_source_id, ''), COALESCE(proxy_bind_source_url, ''),
 		       COALESCE(proxy_bind_name, ''), COALESCE(proxy_bind_updated_at, ''),
 		       launch_args,
-		       tags, keywords, group_id, created_at, updated_at,
+		       tags, keywords, COALESCE(two_fa_secret, ''), COALESCE(icon_color, ''), group_id, created_at, updated_at,
 		       COALESCE(last_start_at, ''), COALESCE(last_stop_at, '')
 		FROM browser_profiles WHERE profile_id = ?`, profileId)
 	p, err := scanProfile(row)
@@ -88,12 +93,17 @@ func (d *SQLiteProfileDAO) Upsert(profile *Profile) error {
 
 	_, err := d.db.Exec(`
 		INSERT INTO browser_profiles
-		  (profile_id, profile_name, user_data_dir, core_id, fingerprint_args,
+		  (profile_id, profile_name, username, password, platform, platform_name, platform_url, user_data_dir, core_id, fingerprint_args,
 		   proxy_id, proxy_config, proxy_bind_source_id, proxy_bind_source_url, proxy_bind_name, proxy_bind_updated_at,
-		   launch_args, tags, keywords, group_id, created_at, updated_at, last_start_at, last_stop_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		   launch_args, tags, keywords, two_fa_secret, icon_color, group_id, created_at, updated_at, last_start_at, last_stop_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(profile_id) DO UPDATE SET
 		  profile_name     = excluded.profile_name,
+		  username         = excluded.username,
+		  password         = excluded.password,
+		  platform         = excluded.platform,
+		  platform_name    = excluded.platform_name,
+		  platform_url     = excluded.platform_url,
 		  user_data_dir    = excluded.user_data_dir,
 		  core_id          = excluded.core_id,
 		  fingerprint_args = excluded.fingerprint_args,
@@ -106,14 +116,18 @@ func (d *SQLiteProfileDAO) Upsert(profile *Profile) error {
 		  launch_args      = excluded.launch_args,
 		  tags             = excluded.tags,
 		  keywords         = excluded.keywords,
+		  two_fa_secret    = excluded.two_fa_secret,
+		  icon_color       = excluded.icon_color,
 		  group_id         = excluded.group_id,
 		  updated_at       = excluded.updated_at,
 		  last_start_at    = excluded.last_start_at,
 		  last_stop_at     = excluded.last_stop_at`,
-		profile.ProfileId, profile.ProfileName, profile.UserDataDir, profile.CoreId,
+		profile.ProfileId, profile.ProfileName, ResolveProfileUsername(profile.Username, profile.ProfileName),
+		strings.TrimSpace(profile.Password), strings.TrimSpace(profile.Platform), strings.TrimSpace(profile.PlatformName), strings.TrimSpace(profile.PlatformURL),
+		profile.UserDataDir, profile.CoreId,
 		string(fingerprintArgs), profile.ProxyId, profile.ProxyConfig,
 		profile.ProxyBindSourceID, profile.ProxyBindSourceURL, profile.ProxyBindName, profile.ProxyBindUpdatedAt,
-		string(launchArgs), string(tags), string(keywords), profile.GroupId,
+		string(launchArgs), string(tags), string(keywords), strings.TrimSpace(profile.TwoFASecret), ResolveProfileIconColor(profile.IconColor, profile.ProfileId), profile.GroupId,
 		profile.CreatedAt, profile.UpdatedAt, profile.LastStartAt, profile.LastStopAt,
 	)
 	if err != nil {
@@ -151,23 +165,27 @@ func (d *SQLiteProfileDAO) ListByGroup(groupId string, includeChildren bool, chi
 			args[i] = id
 		}
 		rows, err = d.db.Query(fmt.Sprintf(`
-			SELECT rowid, profile_id, profile_name, user_data_dir, core_id,
+			SELECT rowid, profile_id, profile_name, COALESCE(username, ''),
+			       COALESCE(password, ''), COALESCE(platform, ''), COALESCE(platform_name, ''), COALESCE(platform_url, ''),
+			       user_data_dir, core_id,
 			       fingerprint_args, proxy_id, proxy_config,
 			       COALESCE(proxy_bind_source_id, ''), COALESCE(proxy_bind_source_url, ''),
 			       COALESCE(proxy_bind_name, ''), COALESCE(proxy_bind_updated_at, ''),
 			       launch_args,
-			       tags, keywords, group_id, created_at, updated_at,
+			       tags, keywords, COALESCE(two_fa_secret, ''), COALESCE(icon_color, ''), group_id, created_at, updated_at,
 			       COALESCE(last_start_at, ''), COALESCE(last_stop_at, '')
 			FROM browser_profiles WHERE group_id IN (%s) ORDER BY rowid ASC`, inClause), args...)
 	} else {
 		// 仅查询指定分组
 		rows, err = d.db.Query(`
-			SELECT rowid, profile_id, profile_name, user_data_dir, core_id,
+			SELECT rowid, profile_id, profile_name, COALESCE(username, ''),
+			       COALESCE(password, ''), COALESCE(platform, ''), COALESCE(platform_name, ''), COALESCE(platform_url, ''),
+			       user_data_dir, core_id,
 			       fingerprint_args, proxy_id, proxy_config,
 			       COALESCE(proxy_bind_source_id, ''), COALESCE(proxy_bind_source_url, ''),
 			       COALESCE(proxy_bind_name, ''), COALESCE(proxy_bind_updated_at, ''),
 			       launch_args,
-			       tags, keywords, group_id, created_at, updated_at,
+			       tags, keywords, COALESCE(two_fa_secret, ''), COALESCE(icon_color, ''), group_id, created_at, updated_at,
 			       COALESCE(last_start_at, ''), COALESCE(last_stop_at, '')
 			FROM browser_profiles WHERE group_id = ? ORDER BY rowid ASC`, groupId)
 	}
@@ -221,10 +239,10 @@ func scanProfile(s scanner) (*Profile, error) {
 		p                                                           Profile
 	)
 	err := s.Scan(
-		&p.ID, &p.ProfileId, &p.ProfileName, &p.UserDataDir, &p.CoreId,
+		&p.ID, &p.ProfileId, &p.ProfileName, &p.Username, &p.Password, &p.Platform, &p.PlatformName, &p.PlatformURL, &p.UserDataDir, &p.CoreId,
 		&fingerprintArgsJSON, &p.ProxyId, &p.ProxyConfig,
 		&p.ProxyBindSourceID, &p.ProxyBindSourceURL, &p.ProxyBindName, &p.ProxyBindUpdatedAt,
-		&launchArgsJSON, &tagsJSON, &keywordsJSON, &p.GroupId,
+		&launchArgsJSON, &tagsJSON, &keywordsJSON, &p.TwoFASecret, &p.IconColor, &p.GroupId,
 		&p.CreatedAt, &p.UpdatedAt, &p.LastStartAt, &p.LastStopAt,
 	)
 	if err != nil {
@@ -246,5 +264,11 @@ func scanProfile(s scanner) (*Profile, error) {
 	if p.Keywords == nil {
 		p.Keywords = []string{}
 	}
+	p.IconColor = ResolveProfileIconColor(p.IconColor, p.ProfileId)
+	p.Username = ResolveProfileUsername(p.Username, p.ProfileName)
+	p.Password = strings.TrimSpace(p.Password)
+	p.Platform = strings.TrimSpace(p.Platform)
+	p.PlatformName = strings.TrimSpace(p.PlatformName)
+	p.PlatformURL = strings.TrimSpace(p.PlatformURL)
 	return &p, nil
 }

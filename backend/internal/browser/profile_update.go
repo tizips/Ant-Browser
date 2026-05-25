@@ -26,6 +26,11 @@ func (m *Manager) Update(profileId string, input ProfileInput) (*Profile, error)
 	}
 
 	profile.ProfileName = input.ProfileName
+	profile.Username = ResolveProfileUsername(input.Username, input.ProfileName)
+	profile.Password = strings.TrimSpace(input.Password)
+	profile.Platform = strings.TrimSpace(input.Platform)
+	profile.PlatformName = strings.TrimSpace(input.PlatformName)
+	profile.PlatformURL = strings.TrimSpace(input.PlatformURL)
 	profile.UserDataDir = input.UserDataDir
 	profile.CoreId = normalizeProfileCoreID(input.CoreId)
 	profile.FingerprintArgs = input.FingerprintArgs
@@ -47,6 +52,8 @@ func (m *Manager) Update(profileId string, input ProfileInput) (*Profile, error)
 	profile.LaunchArgs = input.LaunchArgs
 	profile.Tags = input.Tags
 	profile.Keywords = append([]string{}, input.Keywords...)
+	profile.TwoFASecret = strings.TrimSpace(input.TwoFASecret)
+	profile.IconColor = ResolveProfileIconColor(input.IconColor, profile.ProfileId)
 	profile.GroupId = buildProfileGroupID(input.GroupId)
 	profile.UpdatedAt = time.Now().Format(time.RFC3339)
 

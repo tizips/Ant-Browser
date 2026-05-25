@@ -104,20 +104,21 @@ type LaunchCallRecord struct {
 
 // LaunchServer 本地 HTTP 唤起服务
 type LaunchServer struct {
-	service    *LaunchCodeService
-	starter    BrowserStarter
-	browserMgr *browser.Manager
-	port       int
-	server     *http.Server
-	mu         sync.Mutex
-	authMu     sync.RWMutex
-	logMu      sync.Mutex
-	callLogs   []LaunchCallRecord
-	activeMu   sync.RWMutex
-	activePort int
-	activeID   string
-	activeName string
-	apiAuth    APIAuthConfig
+	service      *LaunchCodeService
+	starter      BrowserStarter
+	browserMgr   *browser.Manager
+	port         int
+	server       *http.Server
+	mu           sync.Mutex
+	authMu       sync.RWMutex
+	logMu        sync.Mutex
+	callLogs     []LaunchCallRecord
+	startPageDir string
+	activeMu     sync.RWMutex
+	activePort   int
+	activeID     string
+	activeName   string
+	apiAuth      APIAuthConfig
 }
 
 // NewLaunchServer 创建 LaunchServer

@@ -200,6 +200,11 @@ type BrowserEnvironment struct {
 type BrowserProfileConfig struct {
 	ProfileId          string   `yaml:"profile_id" json:"profileId"`
 	ProfileName        string   `yaml:"profile_name" json:"profileName"`
+	Username           string   `yaml:"username,omitempty" json:"username,omitempty"`
+	Password           string   `yaml:"password,omitempty" json:"password,omitempty"`
+	Platform           string   `yaml:"platform,omitempty" json:"platform,omitempty"`
+	PlatformName       string   `yaml:"platform_name,omitempty" json:"platformName,omitempty"`
+	PlatformURL        string   `yaml:"platform_url,omitempty" json:"platformUrl,omitempty"`
 	UserDataDir        string   `yaml:"user_data_dir" json:"userDataDir"`
 	CoreId             string   `yaml:"core_id" json:"coreId"`
 	FingerprintArgs    []string `yaml:"fingerprint_args" json:"fingerprintArgs"`
@@ -212,6 +217,8 @@ type BrowserProfileConfig struct {
 	LaunchArgs         []string `yaml:"launch_args" json:"launchArgs"`
 	Tags               []string `yaml:"tags" json:"tags"`
 	Keywords           []string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
+	TwoFASecret        string   `yaml:"two_fa_secret,omitempty" json:"twoFaSecret,omitempty"`
+	IconColor          string   `yaml:"icon_color,omitempty" json:"iconColor,omitempty"`
 	CreatedAt          string   `yaml:"created_at" json:"createdAt"`
 	UpdatedAt          string   `yaml:"updated_at" json:"updatedAt"`
 }

@@ -150,6 +150,37 @@ var migrations = []migration{
 			`ALTER TABLE browser_profiles ADD COLUMN last_stop_at TEXT NOT NULL DEFAULT ''`,
 		},
 	},
+	{
+		version: 9,
+		desc:    "实例表添加 2FA 密钥字段",
+		stmts: []string{
+			`ALTER TABLE browser_profiles ADD COLUMN two_fa_secret TEXT NOT NULL DEFAULT ''`,
+		},
+	},
+	{
+		version: 10,
+		desc:    "实例表添加图标颜色字段",
+		stmts: []string{
+			`ALTER TABLE browser_profiles ADD COLUMN icon_color TEXT NOT NULL DEFAULT ''`,
+		},
+	},
+	{
+		version: 11,
+		desc:    "实例表添加用户名字段",
+		stmts: []string{
+			`ALTER TABLE browser_profiles ADD COLUMN username TEXT NOT NULL DEFAULT ''`,
+		},
+	},
+	{
+		version: 12,
+		desc:    "实例表添加平台账号字段",
+		stmts: []string{
+			`ALTER TABLE browser_profiles ADD COLUMN password TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE browser_profiles ADD COLUMN platform TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE browser_profiles ADD COLUMN platform_name TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE browser_profiles ADD COLUMN platform_url TEXT NOT NULL DEFAULT ''`,
+		},
+	},
 	// ── 新版本在此追加，格式：
 	// {
 	//     version: 4,
