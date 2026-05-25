@@ -585,7 +585,7 @@ function PaginationBar({
               type="button"
               className={`h-8 min-w-8 rounded-md px-2 text-sm font-medium transition-colors ${
                 page === currentPage
-                  ? 'bg-[var(--color-accent)] text-white'
+                  ? 'bg-[var(--color-accent)] text-[var(--color-text-inverse)]'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-primary)]'
               }`}
               onClick={() => onPageChange(page)}
