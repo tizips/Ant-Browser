@@ -108,6 +108,9 @@ require_cmd python3
 require_cmd tar
 require_cmd dpkg-deb
 require_cmd wails
+if [[ "$SKIP_BUILD" -ne 1 ]]; then
+  require_cmd pkg-config
+fi
 
 if [[ -z "$VERSION" ]]; then
   VERSION="$(python3 - "$ROOT_DIR/wails.json" <<'PY'
@@ -188,7 +191,11 @@ if [[ "$SKIP_BUILD" -ne 1 ]]; then
   rm -f "$APP_BIN"
   (
     cd "$ROOT_DIR"
-    wails build -s -platform "linux/$ARCH" -o ant-chrome
+    wails_build_args=(build -s -platform "linux/$ARCH" -o ant-chrome)
+    if pkg-config --exists webkit2gtk-4.1; then
+      wails_build_args+=(-tags webkit2_41)
+    fi
+    wails "${wails_build_args[@]}"
   )
 else
   echo "[WARN] skipping build step"
